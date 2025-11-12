@@ -133,7 +133,14 @@
 			{
 				"name": "updated_last_cdc",
 				"type": "Copy",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "max_cdc",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"timeout": "0.12:00:00",
 					"retry": 0,
@@ -145,6 +152,15 @@
 				"typeProperties": {
 					"source": {
 						"type": "JsonSource",
+						"additionalColumns": [
+							{
+								"name": "cdc",
+								"value": {
+									"value": "@activity('max_cdc').output.resultSets[0].rows[0].cdc",
+									"type": "Expression"
+								}
+							}
+						],
 						"storeSettings": {
 							"type": "AzureBlobFSReadSettings",
 							"recursive": true,
@@ -152,6 +168,15 @@
 						},
 						"formatSettings": {
 							"type": "JsonReadSettings"
+						}
+					},
+					"sink": {
+						"type": "JsonSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						},
+						"formatSettings": {
+							"type": "JsonWriteSettings"
 						}
 					},
 					"enableStaging": false
@@ -166,12 +191,30 @@
 							"file": "empty.json"
 						}
 					}
+				],
+				"outputs": [
+					{
+						"referenceName": "Json_dynamic",
+						"type": "DatasetReference",
+						"parameters": {
+							"container": "bronze",
+							"folder": "cdc",
+							"file": "cdc.json"
+						}
+					}
 				]
 			},
 			{
 				"name": "max_cdc",
 				"type": "Script",
-				"dependsOn": [],
+				"dependsOn": [
+					{
+						"activity": "azuresqltolake",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
 				"policy": {
 					"timeout": "0.12:00:00",
 					"retry": 0,
@@ -187,11 +230,11 @@
 				"typeProperties": {
 					"scripts": [
 						{
-							"parameters": {
+							"type": "Query",
+							"text": {
 								"value": "SELECT MAX(@{pipeline().parameters.cdc_col}) as cdc FROM @{pipeline().parameters.schema}.@{pipeline().parameters.table}",
 								"type": "Expression"
-							},
-							"type": "Query"
+							}
 						}
 					],
 					"scriptBlockExecutionTimeout": "02:00:00"
